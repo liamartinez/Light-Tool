@@ -1,8 +1,10 @@
 #include <FastLED.h>
 #include <math.h>//for breathing
-
 #include <Wire.h>
 #include "Adafruit_Trellis.h"
+#include <SD.h>
+#include <SPI.h>
+
 //---
 Adafruit_Trellis matrix0 = Adafruit_Trellis();
 Adafruit_Trellis matrix1 = Adafruit_Trellis();
@@ -39,6 +41,7 @@ CRGB leds[NUM_LEDS];
 #define POT2 A13 //width
 #define POT3 A14 //direction
 
+
 int dialVal;
 
 //levels
@@ -54,6 +57,7 @@ int offset; //for beam
 int val, val2, val3, val4, val5, val6;
 int mode, modeVal;
 
+
 //for smoothing
 const int numReadings = 10;
 
@@ -66,18 +70,80 @@ int average = 0;                // the average
 #define NUMSPOTS 16
 #define NUMPARAMS 10
 int saved[NUMSPOTS][NUMPARAMS];
+File myFile;
 
 void setup() {
-  // begin() with the addresses of each panel in order
-  // I find it easiest if the addresses are in order
+
   trellis.begin(0x70);  // only one
-  // trellis.begin(0x70, 0x71, 0x72, 0x73);  // or four!
-
-
-  // put your setup code here, to run once:
   FastLED.addLeds<WS2801, DATA_PIN, CLOCK_PIN>(leds, NUM_LEDS);
-  delay( 3000 ); // power-up safety delay
+  delay( 2000 ); // power-up safety delay
+
   Serial.begin (9600);
+  Serial.setTimeout(50);
+
+  //int data[NUMPARAMS] = {2, 0, 0, 0, 100, 500, 500, 0, 0, 0};
+  int data[NUMPARAMS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  Serial.print("Initializing SD card...");
+  pinMode(53, OUTPUT);
+  if (!SD.begin(4)) {
+    Serial.println("initialization failed!");
+    return;
+  }
+  Serial.println("initialization done.");
+
+  // open the file. note that only one file can be open at a time,
+  // so you have to close this one before opening another.
+  /*
+   Serial.println("Clearing data...");
+   SD.remove("settings.txt");
+   myFile = SD.open("settings.txt", FILE_WRITE);
+
+   // if the file opened okay, write to it:
+   if (myFile) {
+     Serial.print("Writing to settings.txt...");
+     myFile.print("S");
+     for (int i = 0; i < NUMPARAMS; i++) {
+     myFile.print(String(data[i]));
+     myFile.print(",");
+     }
+     myFile.println("");
+     //myFile.println(data);
+     // close the file:
+     myFile.close();
+     Serial.println("done.");
+   } else {
+     // if the file didn't open, print an error:
+     Serial.println("error opening settings.txt");
+   }
+   */
+  // re-open the file for reading:
+  myFile = SD.open("settings.txt");
+  if (myFile) {
+    // Serial.write(myFile.read());
+    Serial.println("settings.txt");
+    
+    while (myFile.available()) {
+    //this doesnt work with a loop so we have to enter it manually
+    data[0] = myFile.parseInt();
+    data[1] = myFile.parseInt();
+    data[2] = myFile.parseInt();
+    data[3] = myFile.parseInt();
+    data[4] = myFile.parseInt();
+    data[5] = myFile.parseInt();
+    data[6] = myFile.parseInt();
+    data[7] = myFile.parseInt();
+    data[8] = myFile.parseInt();
+    data[9] = myFile.parseInt();
+    Serial.print(myFile.parseInt());
+    }
+
+    // close the file:
+    myFile.close();
+  } else {
+    // if the file didn't open, print an error:
+    Serial.println("error opening test.txt");
+  }
+
   brightness = MAXBRIGHT;
   saturation = 255;
   breatheVal = 5;
@@ -99,10 +165,12 @@ void setup() {
   }
 
   //test config
-  int data[NUMPARAMS] = {2, 0, 0, 0, 500, 500, 500, 0, 0, 0};
   for (int i = 0; i < NUMPARAMS; i++) {
     saved[16][i] = data[i];
+    Serial.print ("data: ");
+    Serial.print (data[i]);
   }
+
 
 }
 
@@ -110,13 +178,11 @@ void loop() {
 
   //values
   modeVal = analogRead(MODESWITCH);
-  mode;
+
 
   consoleMode = digitalRead(CONPIN);
 
   if (consoleMode == 0) {
-
-    Serial.println ("TINKER!!");
 
     val = analogRead(SLIDER1);
     val2 = analogRead (SLIDER2);
@@ -140,8 +206,7 @@ void loop() {
     if (modeVal > 300 && modeVal < 450) mode = 5;
     if (modeVal > 150 && modeVal < 300) mode = 6;
     if (modeVal > 90 && modeVal < 150) mode = 7;
-    if (modeVal < 90) mode = 7;
-
+    if (modeVal < 90) mode = 8;
 
     //map
     hueVal = map(val, 0, 920, 0, 255);
@@ -149,7 +214,6 @@ void loop() {
     saturation = map(val2, 0, 1023, 255, 0);
     //brightness = map(val3, 0, 1023, 255, 0);
     brightness = 255;
-
 
     openSaveMode = false; //reset
 
@@ -160,24 +224,24 @@ void loop() {
 
     switch (mode) {
 
-      case 1:
+      case 0:
         steady (hueVal, saturation, brightness);
         break;
 
-      case 2:
+      case 1:
         pulse (analogRead(POT1), hueVal, saturation);
         break;
 
-      case 3:
+      case 2:
         runAround (analogRead (POT2), analogRead (POT1), hueVal, saturation, brightness, offsetHue, offsetSat, offsetBright);
         break;
 
-      case 4://beam
+      case 3://beam
         beam (analogRead (POT2), analogRead(POT3), hueVal, saturation, brightness);
         break;
 
-      case 5: //sparkle
-        sparkle (analogRead (POT2),analogRead (POT1), hueVal, saturation, brightness, offsetHue, offsetSat, offsetBright);        
+      case 4: //sparkle
+        sparkle (analogRead (POT2), analogRead (POT1), hueVal, saturation, brightness, offsetHue, offsetSat, offsetBright);
         break;
 
 
@@ -313,7 +377,6 @@ void steady(int h, int s, int b) {
 
 void pulse(int v, int h, int s) {
   breatheVal = map(v, 0, 1023, 500.0, 4000.0);
-  Serial.println (breatheVal);
   breatheMath = int((exp(sin(millis() / breatheVal * PI)) - 0.36787944) * 108.0);
   //http://sean.voisen.org/blog/2011/10/breathing-led-with-arduino/
 
@@ -344,28 +407,29 @@ void beam(int width_, int dir_, int h, int s, int b) {
   dir = map(dir_, 1023, 0, 0, NUM_LEDS);
 
   for (int i = 0; i < NUM_LEDS; i++) {
-  leds[i] = CHSV( h, s, 0);
+    leds[i] = CHSV( h, s, 0);
   }
 
   for (int i = dir - width; i < dir + width; i++) {
-  leds[i] = CHSV( h, s, b);
+    leds[i] = CHSV( h, s, b);
   }
 }
 
 void sparkle(int width_, int rate_, int h, int s, int b, int h2, int s2, int b2) {
-        width = map (width_, 0, 1024, 1, NUM_LEDS);
-        rate = map (rate_, 0, 1024, 10, 200);
-        for (int i = 0; i < NUM_LEDS; i++) {
-          leds[i] = CHSV( h, s, b);
-        }
-        delay(rate);
-        for (int j = 0; j < width; j++) {
-          leds[random(0, NUM_LEDS - 1)] = CHSV( h + h2, s + s2, b + b2);
-        }
+  width = map (width_, 0, 1024, 1, NUM_LEDS);
+  rate = map (rate_, 0, 1024, 10, 200);
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = CHSV( h, s, b);
+  }
+  delay(rate);
+  for (int j = 0; j < width; j++) {
+    leds[random(0, NUM_LEDS - 1)] = CHSV( h + h2, s + s2, b + b2);
+  }
 }
 
 //------------------helper ----------------------------//
 
+//this should be a class so you can make separate functions for everything you use it for
 int smooth (int r) {
   // subtract the last reading:
   total = total - readings[index];

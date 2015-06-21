@@ -95,6 +95,7 @@ boolean buttonDone = false;
 long buttonStart = 0;
 long buttonInterval = 1000;
 int curNum, lastNum;
+boolean saveNow; 
 
 void setup() {
 
@@ -194,7 +195,7 @@ void setup() {
     Serial.print ("saved: ");
     Serial.print (saved[16][i]);
   }
-  openSaveMode = true; 
+ 
 }
 
 void loop() {
@@ -207,7 +208,8 @@ void loop() {
 
   if (consoleMode == 0) {
     
-    openSaveMode = true; 
+    //openSaveMode = true; 
+    saveNow = true; 
     
     val = analogRead(SLIDER1);
     val2 = analogRead (SLIDER2);
@@ -290,10 +292,12 @@ void loop() {
     int testArray[NUMPARAMS] = {4, 500, 500, 500, 100, 100, 500, 500, 500, 500};
 
 
-    if (openSaveMode) {
-      dialVal = -1; //dont blink anything
+    if (saveNow) {
+      dialVal = -2; //dont blink anything
     }
     
+    if (saveNow) Serial.println ("OPEN"); 
+    else Serial.println ("NO"); 
     
     //removing this breaks the buttons. WHY???
     for (int i = 0; i < 5; i++) {
@@ -333,9 +337,13 @@ void loop() {
           dialVal = i;
           if (openSaveMode) {
             //save something
+            if (saved[dialVal][0] == -1) {
             Serial.println ("saving...");
             save (dialVal, mode, rateVal, widthVal, dirVal, hueVal, saturation, brightness, offsetHue, offsetSat, offsetBright);
-            openSaveMode = false; 
+            saveNow = false; 
+            } else {
+            saveNow = false; 
+            }
           }
         }
         // if it was released, turn it off
@@ -345,13 +353,17 @@ void loop() {
         }
       }
       // tell the trellis to set the LEDs we requested
+  
       trellis.writeDisplay();
     }
-
-
-
+    
+    if (dialVal > -1 && dialVal < NUMSPOTS) curNum = dialVal; 
+    
     for (int i = 0; i < NUMSPOTS; i++) {
-      if (dialVal == i) {
+      Serial.println (curNum); 
+      if (curNum == i) {
+
+        saveNow = false; 
         switch (saved[i][0]) {
 
           case 0:
@@ -376,76 +388,12 @@ void loop() {
         }
       }
     }
-
-
   }
 
-  /*
-      if (buttonDone) {
-      if (curNum != lastNum) {
-        //Serial.println("NEW THING");
 
-        if (numPresses > 20) {
-          Serial.println ("                       SAVE SOMETHING");
-          lastNum = curNum;
-          numPresses = 0;
-
-        }  else if (numPresses < 20) {
-          Serial.println ("                       DO IT");
-          dialVal = curNum;
-          numPresses = 0;
-          lastNum = curNum;
-
-        }
-      }
-      }
-
-  */
+  
 
 
-  /*
-    switch (dialVal) {
-      case 0:
-        for (int i = 0; i < NUM_LEDS; i++) {
-          leds[i] = 0x0078D7;
-        }
-        break;
-
-      case 1:
-        for (int i = 0; i < NUM_LEDS; i++) {
-          leds[i] = 0x008285;
-        }
-        break;
-
-      case 2:
-        for (int i = 0; i < NUM_LEDS; i++) {
-          leds[i] = 0x00F8A3D;
-        }
-        break;
-
-      case 3:
-        for (int i = 0; i < NUM_LEDS; i++) {
-          leds[i] = 0xFF4242;
-        }
-        break;
-
-      case 4:
-        for (int i = 0; i < NUM_LEDS; i++) {
-          leds[i] = 0xEB005E;
-        }
-        break;
-
-      case 5:
-        for (int i = 0; i < NUM_LEDS; i++) {
-          leds[i] = 0x8C6BC2;
-        }
-        break;
-
-      case 15:
-        pulse (saved[16][1], saved[16][4], saved[16][5]);
-        break;
-    }
-  */
 
   FastLED.show();
 }

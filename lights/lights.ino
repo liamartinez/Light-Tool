@@ -95,7 +95,9 @@ boolean buttonDone = false;
 long buttonStart = 0;
 long buttonInterval = 1000;
 int curNum, lastNum;
-boolean saveNow; 
+boolean saveNow;
+int delNum, oldVal;
+boolean deleteMode = false;
 
 void setup() {
 
@@ -107,7 +109,7 @@ void setup() {
   Serial.setTimeout(50);
 
   //int data[NUMPARAMS] = {2, 0, 0, 0, 100, 500, 500, 0, 0, 0};
-  int data[NUMPARAMS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  //int data[NUMPARAMS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   Serial.print("Initializing SD card...");
   pinMode(53, OUTPUT);
   if (!SD.begin(4)) {
@@ -144,11 +146,19 @@ void setup() {
   // re-open the file for reading:
   myFile = SD.open("settings.txt");
   if (myFile) {
-    // Serial.write(myFile.read());
+     //Serial.print(myFile.read());//this was off 
     Serial.println("settings.txt");
+    /*
+ while (myFile.available()) {
+      Serial.write(myFile.read());
+    }
+    */
 
     while (myFile.available()) {
       //this doesnt work with a loop so we have to enter it manually
+      Serial.write(myFile.read());
+      
+      /*
       data[0] = myFile.parseInt();
       data[1] = myFile.parseInt();
       data[2] = myFile.parseInt();
@@ -159,8 +169,10 @@ void setup() {
       data[7] = myFile.parseInt();
       data[8] = myFile.parseInt();
       data[9] = myFile.parseInt();
-      Serial.print(myFile.parseInt());
+      */
+      //Serial.print(myFile.parseInt());
     }
+    
 
     // close the file:
     myFile.close();
@@ -183,6 +195,7 @@ void setup() {
     readings[thisReading] = 0;
   }
 
+
   for (int i = 0; i < NUMSPOTS; i++) {
     for (int j = 0; j < NUMPARAMS; j++) {
       saved [i][j] = -1;
@@ -190,12 +203,14 @@ void setup() {
   }
 
   //test config
+  /*
   for (int i = 0; i < NUMPARAMS; i++) {
-    saved[15][i] = data[i];
+    saved[14][i] = data[i];
     Serial.print ("saved: ");
     Serial.print (saved[16][i]);
   }
- 
+  */
+
 }
 
 void loop() {
@@ -207,10 +222,11 @@ void loop() {
   consoleMode = digitalRead(CONPIN);
 
   if (consoleMode == 0) {
-    
-    //openSaveMode = true; 
-    saveNow = true; 
-    
+
+    //openSaveMode = true;
+    saveNow = true;
+    deleteMode = false;
+
     val = analogRead(SLIDER1);
     val2 = analogRead (SLIDER2);
     val3 = analogRead (SLIDER3);
@@ -221,12 +237,14 @@ void loop() {
     widthVal = analogRead (POT2);
     dirVal = analogRead(POT3);
 
-    offsetHue = map (val4, 0, 1023, 0, 255);
-
-    offsetBright = 0;
+    offsetHue = map (val5, 0, 1023, 0, 255);//switched with bright for now
+    
+    //offsetBright = map(val5, 0, 1023, 0, 255);
     offsetSat = map (val6, 0, 1023, 255, 0);
     int pot1 = analogRead(POT1);
     //int mode = map(analogRead(MODESWITCH), 0, 1023, 8, 1);
+
+  Serial.println (offsetSat); 
 
     if (modeVal > 950) mode = 0;
     if (modeVal > 850 && modeVal < 950) mode = 1;
@@ -242,8 +260,8 @@ void loop() {
     hueVal = map(val, 0, 920, 0, 255);
     hueVal = smooth(hueVal);
     saturation = map(val2, 0, 1023, 255, 0);
-    //brightness = map(val3, 0, 1023, 255, 0);
-    brightness = 255;
+    brightness = map(val3, 0, 1023, 255, 0);
+    //brightness = 255;
 
     for (uint8_t i = 0; i < numKeys; i++) {
       trellis.clrLED(i);
@@ -261,14 +279,17 @@ void loop() {
         break;
 
       case 2:
-        runAround (widthVal, rateVal, hueVal, saturation, brightness, offsetHue, offsetSat, offsetBright);
+        runAround (widthVal, rateVal, hueVal, saturation, brightness);
         break;
+        
+       case 3:
+        runAround2 (widthVal, rateVal, hueVal, saturation, brightness, offsetHue, offsetSat, offsetBright);
 
-      case 3://beam
+      case 4://beam
         beam (widthVal, dirVal, hueVal, saturation, brightness);
         break;
 
-      case 4: //sparkle
+      case 5: //sparkle
         sparkle (widthVal, rateVal, hueVal, saturation, brightness, offsetHue, offsetSat, offsetBright);
         break;
 
@@ -291,270 +312,333 @@ void loop() {
     //+++ add a function here to save the parameters in an array
     int testArray[NUMPARAMS] = {4, 500, 500, 500, 100, 100, 500, 500, 500, 500};
 
-
-    if (saveNow) {
-      dialVal = -2; //dont blink anything
-    }
-    
-    if (saveNow) Serial.println ("OPEN"); 
-    else Serial.println ("NO"); 
-    
-    //removing this breaks the buttons. WHY???
-    for (int i = 0; i < 5; i++) {
-      if (i != dialVal) {
-        trellis.clrLED(i);
-        trellis.writeDisplay();
-      }
-    }
-
-
-    for (int i = 0; i < NUMSPOTS; i++) {
-      if (saved[i][0] != -1) {
-        trellis.setLED(i);
-        trellis.writeDisplay();
+    if (!deleteMode) {
+      if (saveNow) {
+        dialVal = -2; //dont blink anything
       }
 
-    }
-    
 
-    /* //blinking
-    trellis.setLED(dialVal);
-    trellis.writeDisplay();
-    delay (600);
-    trellis.clrLED(dialVal);
-    trellis.writeDisplay();
-    delay (600);
-    */
 
-    // If a button was just pressed or released...
-    if (trellis.readSwitches()) {
-      // go through every button
-      for (uint8_t i = 0; i < numKeys; i++) {
-        // if it was pressed, turn it on
-        if (trellis.justPressed(i)) {
-          Serial.println ("pressed");
+      //removing this breaks the buttons. WHY???
+      for (int i = 0; i < 5; i++) {
+        if (i != dialVal) {
+          trellis.clrLED(i);
+          trellis.writeDisplay();
+        }
+      }
+
+
+      for (int i = 0; i < NUMSPOTS; i++) {
+        if (saved[i][0] != -1) {
           trellis.setLED(i);
-          dialVal = i;
-          if (openSaveMode) {
-            //save something
-            if (saved[dialVal][0] == -1) {
-            Serial.println ("saving...");
-            save (dialVal, mode, rateVal, widthVal, dirVal, hueVal, saturation, brightness, offsetHue, offsetSat, offsetBright);
-            saveNow = false; 
-            } else {
-            saveNow = false; 
+          trellis.writeDisplay();
+        }
+
+      }
+
+
+
+
+      // If a button was just pressed or released...
+      if (trellis.readSwitches()) {
+        // go through every button
+        for (uint8_t i = 0; i < numKeys; i++) {
+          // if it was pressed, turn it on
+          if (trellis.justPressed(i)) {
+            Serial.println ("pressed");
+            trellis.setLED(i);
+            dialVal = i;
+            if (saveNow) {
+              //save something
+              if (saved[dialVal][0] == -1) {
+                Serial.println ("saving...");
+                save (dialVal, mode, rateVal, widthVal, dirVal, hueVal, saturation, brightness, offsetHue, offsetSat, offsetBright);
+                saveNow = false;
+              } else {
+                saveNow = false;
+              }
             }
+            if (dialVal == 15) deleteMode = true; 
+          }
+          // if it was released, turn it off
+          if (trellis.justReleased(i)) {
+            Serial.println ("released");
+            trellis.clrLED(i);
           }
         }
-        // if it was released, turn it off
-        if (trellis.justReleased(i)) {
-          Serial.println ("released");
-          trellis.clrLED(i);
+        // tell the trellis to set the LEDs we requested
+
+        trellis.writeDisplay();
+      }
+
+
+      if (dialVal > -1 && dialVal < NUMSPOTS) curNum = dialVal;
+
+      for (int i = 0; i < NUMSPOTS; i++) {
+        if (curNum == i) {
+
+          //saveNow = false;
+          switch (saved[i][0]) {
+
+            case 0:
+              steady (saved[i][4], saved[i][5], saved[i][6]);
+              break;
+
+            case 1:
+              pulse (saved[i][1], saved[i][4], saved[i][5]);
+              break;
+
+            case 2:
+              runAround (saved[i][2], saved[i][1], saved[i][4], saved[i][5], saved[i][6]);
+              break;
+              
+            case 3:
+              runAround2 (saved[i][2], saved[i][1], saved[i][4], saved[i][5], saved[i][6], saved[i][7], saved[i][8], saved[i][9]);
+              
+            case 4://beam
+              beam (saved[i][2], saved[i][3], saved[i][4], saved[i][5], saved[i][6]);
+              break;
+
+            case 5: //sparkle
+              sparkle (saved[i][2], saved[i][1], saved[i][4], saved[i][5], saved[i][6], saved[i][7], saved[i][8], saved[i][9]);
+              break;
+          }
         }
       }
-      // tell the trellis to set the LEDs we requested
-  
+
+
+
+      /*
+       trellis.setLED(15);
+        trellis.writeDisplay();
+        delay (600);
+        trellis.clrLED(15);
+        trellis.writeDisplay();
+        delay (600);
+        */
+
+    } else if (deleteMode) {
+      trellis.setLED(15);
       trellis.writeDisplay();
-    }
-    
-    if (dialVal > -1 && dialVal < NUMSPOTS) curNum = dialVal; 
-    
-    for (int i = 0; i < NUMSPOTS; i++) {
-      Serial.println (curNum); 
-      if (curNum == i) {
+      delay (600);
+      trellis.clrLED(15);
+      trellis.writeDisplay();
+      delay (600);
 
-        saveNow = false; 
-        switch (saved[i][0]) {
-
-          case 0:
-            steady (saved[i][4], saved[i][5], saved[i][6]);
-            break;
-
-          case 1:
-            pulse (saved[i][1], saved[i][4], saved[i][5]);
-            break;
-
-          case 2:
-            runAround (saved[i][2], saved[i][1], saved[i][4], saved[i][5], saved[i][6], saved[i][7], saved[i][8], saved[i][9]);
-            break;
-
-          case 3://beam
-            beam (saved[i][2], saved[i][3], saved[i][4], saved[i][5], saved[i][6]);
-            break;
-
-          case 4: //sparkle
-            sparkle (saved[i][2], saved[i][1], saved[i][4], saved[i][5], saved[i][6], saved[i][7], saved[i][8], saved[i][9]);
-            break;
+      if (trellis.readSwitches()) {
+        for (uint8_t i = 0; i < numKeys; i++) {
+          if (trellis.justPressed(i)) {
+            curNum = i;
+          }
         }
       }
-    }
-  }
+
+        if (curNum != 15) {
+          Serial.println ("OK NA");
+          del (curNum);
+        }
+      }
+
+    }//consolemode
 
 
-  
 
 
 
-  FastLED.show();
-}
 
-void animateLights() {
-  // light up all the LEDs in order
-  for (uint8_t i = 0; i < numKeys; i++) {
-    trellis.setLED(i);
-    trellis.writeDisplay();
-    delay(50);
-  }
-  // then turn them off
-  for (uint8_t i = 0; i < numKeys; i++) {
-    trellis.clrLED(i);
-    trellis.writeDisplay();
-    delay(50);
-  }
-}
-
-
-//--------------- modes---------------------------------//
-
-void steady(int h, int s, int b) {
-  for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i] = CHSV( h, s, b);
-  }
-}
-
-void pulse(int v, int h, int s) {
-  breatheVal = map(v, 0, 1023, 500.0, 4000.0);
-  breatheMath = int((exp(sin(millis() / breatheVal * PI)) - 0.36787944) * 108.0);
-  //http://sean.voisen.org/blog/2011/10/breathing-led-with-arduino/
-
-  float b = map (breatheMath, 0, 255, 50, MAXBRIGHT); //leds are not great with the low values
-  for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i] = CHSV( h, s, b);
-  }
-}
-
-void runAround (int width_, int rate_, int h, int s, int b, int h2, int s2, int b2) {
-  int w = map (width_, 1023, 0, 1, NUM_LEDS / 2);
-  int r = map (rate_, 0, 1024, 10, 100);
-  for (int i = 0; i < NUM_LEDS; i ++) {
-    if (i < NUM_LEDS - w) {
-      leds[i + w] = CHSV( h + h2, s + s2, b + b2);
-    } else {
-      leds[i + w] = CHSV( h + h2, s + s2, b + b2);
-      leds[width - (NUM_LEDS - i)] = CHSV(h + h2, s + s2, b + b2);
-    }
     FastLED.show();
-    delay(r);
-    leds[i] = CHSV( h, s, b);
-  }
-}
-
-void beam(int width_, int dir_, int h, int s, int b) {
-  width = map (width_, 1024, 0, 1, NUM_LEDS / 4);
-  dir = map(dir_, 1023, 0, 0, NUM_LEDS);
-
-  for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i] = CHSV( h, s, 0);
   }
 
-  for (int i = dir - width; i < dir + width; i++) {
-    leds[i] = CHSV( h, s, b);
+  void animateLights() {
+    // light up all the LEDs in order
+    for (uint8_t i = 0; i < numKeys; i++) {
+      trellis.setLED(i);
+      trellis.writeDisplay();
+      delay(50);
+    }
+    // then turn them off
+    for (uint8_t i = 0; i < numKeys; i++) {
+      trellis.clrLED(i);
+      trellis.writeDisplay();
+      delay(50);
+    }
   }
-}
 
-void sparkle(int width_, int rate_, int h, int s, int b, int h2, int s2, int b2) {
-  width = map (width_, 0, 1024, 1, NUM_LEDS);
-  rate = map (rate_, 0, 1024, 10, 200);
-  for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i] = CHSV( h, s, b);
+
+  //--------------- modes---------------------------------//
+
+  void steady(int h, int s, int b) {
+    for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i] = CHSV( h, s, b);
+    }
   }
-  delay(rate);
-  for (int j = 0; j < width; j++) {
-    leds[random(0, NUM_LEDS - 1)] = CHSV( h + h2, s + s2, b + b2);
+
+  void pulse(int v, int h, int s) {
+    breatheVal = map(v, 0, 1023, 500.0, 4000.0);
+    breatheMath = int((exp(sin(millis() / breatheVal * PI)) - 0.36787944) * 108.0);
+    //http://sean.voisen.org/blog/2011/10/breathing-led-with-arduino/
+
+    float b = map (breatheMath, 0, 255, 50, MAXBRIGHT); //leds are not great with the low values
+    for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i] = CHSV( h, s, b);
+    }
   }
-}
 
-
-//------------------save--------------------------------//
-
-int save (int i, int m, int r, int w, int d, int h1, int s1, int b1, int h2, int s2, int b2) {
-  saved[i][0] = m;
-  saved[i][1] = r;
-  saved[i][2] = w;
-  saved[i][3] = d;
-  saved[i][4] = h1;
-  saved[i][5] = s1;
-  saved[i][6] = b1;
-  saved[i][7] = h2;
-  saved[i][8] = s2;
-  saved[i][9] = b2;
+  void runAround (int width_, int rate_, int h, int s, int b) {
+    int w = map (width_, 1023, 0, 1, NUM_LEDS / 3);
+    int r = map (rate_, 0, 1024, 10, 100);
+    for (int i = 0; i < NUM_LEDS; i ++) {
+      if (i < NUM_LEDS - w) {
+        leds[i + w] = CHSV( h, s, b);
+      } else {
+        leds[i + w] = CHSV( h, s, b);
+        leds[width - (NUM_LEDS - i)] = CHSV( h, s, b);
+      }
+      FastLED.show();
+      delay(r);
+      leds[i] = CRGB::Black;
+    }
+  }
   
+    void runAround2 (int width_, int rate_, int h, int s, int b, int h2, int s2, int b2) {
+    int w = map (width_, 1023, 0, 1, NUM_LEDS / 2);
+    int r = map (rate_, 0, 1024, 10, 100);
+    for (int i = 0; i < NUM_LEDS; i ++) {
+      if (i < NUM_LEDS - w) {
+        leds[i + w] = CHSV( h + h2, s + s2, b + b2);
+      } else {
+        leds[i + w] = CHSV( h + h2, s + s2, b + b2);
+        leds[width - (NUM_LEDS - i)] = CHSV(h + h2, s + s2, b + b2);
+      }
+      FastLED.show();
+      delay(r);
+      leds[i] = CHSV( h, s, b);
+    }
+  }
+
+  void beam(int width_, int dir_, int h, int s, int b) {
+    width = map (width_, 1024, 0, 1, NUM_LEDS / 4);
+    dir = map(dir_, 1023, 0, 0, NUM_LEDS);
+
+    for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i] = CHSV( h, s, 0);
+    }
+
+    for (int i = dir - width; i < dir + width; i++) {
+      leds[i] = CHSV( h, s, b);
+    }
+  }
+
+  void sparkle(int width_, int rate_, int h, int s, int b, int h2, int s2, int b2) {
+    width = map (width_, 0, 1024, 1, NUM_LEDS);
+    rate = map (rate_, 0, 1024, 10, 200);
+    for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i] = CHSV( h, s, b);
+    }
+    delay(rate);
+    for (int j = 0; j < width; j++) {
+      leds[random(0, NUM_LEDS - 1)] = CHSV( h + h2, s + s2, b + b2);
+    }
+  }
+
+
+  //------------------save--------------------------------//
+
+  int save (int i, int m, int r, int w, int d, int h1, int s1, int b1, int h2, int s2, int b2) {
+    saved[i][0] = m;
+    saved[i][1] = r;
+    saved[i][2] = w;
+    saved[i][3] = d;
+    saved[i][4] = h1;
+    saved[i][5] = s1;
+    saved[i][6] = b1;
+    saved[i][7] = h2;
+    saved[i][8] = s2;
+    saved[i][9] = b2;
+
+    for (int i = 0; i < NUMSPOTS; i++) {
+      for (int j = 0; j < NUMPARAMS; j++) {
+        Serial.print (String (saved[i][j]));
+        Serial.print (",");
+      }
+      Serial.println();
+    }
+
+    Serial.println("Clearing data...");
+    SD.remove("settings.txt");
+    myFile = SD.open("settings.txt", FILE_WRITE);
+
+    // if the file opened okay, write to it:
+    if (myFile) {
+      Serial.print("Writing to settings.txt...");
+      //myFile.print("S");
+      /*
+      for (int i = 0; i < NUMPARAMS; i++) {
+      myFile.print(String(data[i]));
+      myFile.print(",");
+      }
+      myFile.println("");
+      */
       for (int i = 0; i < NUMSPOTS; i++) {
         for (int j = 0; j < NUMPARAMS; j++) {
-        Serial.print (String (saved[i][j])); 
-        Serial.print (","); 
+          myFile.print (String (saved[i][j]));
+          myFile.print (",");
         }
-        Serial.println(); 
-      }
-  
-   Serial.println("Clearing data...");
-   SD.remove("settings.txt");
-   myFile = SD.open("settings.txt", FILE_WRITE);
-
-   // if the file opened okay, write to it:
-   if (myFile) {
-     Serial.print("Writing to settings.txt...");
-     myFile.print("S");
-     /*
-     for (int i = 0; i < NUMPARAMS; i++) {
-     myFile.print(String(data[i]));
-     myFile.print(",");
-     }
-     myFile.println("");
-*/
-      for (int i = 0; i < NUMSPOTS; i++) {
-        for (int j = 0; j < NUMPARAMS; j++) {
-        myFile.print (String (saved[i][j])); 
-        myFile.print (","); 
-        }
-        myFile.println(); 
+        myFile.println("");
       }
 
 
-     // close the file:
-     myFile.close();
-     Serial.println("done.");
-   } else {
-     // if the file didn't open, print an error:
-     Serial.println("error opening settings.txt");
-   }
-  
-  
-  Serial.println ("saved");
-}
+      // close the file:
+      myFile.close();
+      Serial.println("done.");
+    } else {
+      // if the file didn't open, print an error:
+      Serial.println("error opening settings.txt");
+    }
 
-//------------------helper ----------------------------//
 
-//this should be a class so you can make separate functions for everything you use it for
-int smooth (int r) {
-  // subtract the last reading:
-  total = total - readings[index];
-  // read from the sensor:
-  readings[index] = r;
-  // add the reading to the total:
-  total = total + readings[index];
-  // advance to the next position in the array:
-  index = index + 1;
+    Serial.println ("saved");
+  }
 
-  // if we're at the end of the array...
-  if (index >= numReadings)
-    // ...wrap around to the beginning:
-    index = 0;
+  void del (int d) {
+    for (int i = 0; i < NUMPARAMS; i++) {
+      saved[d][i] = -1;
+    }
+    
+          for (int i = 0; i < NUMSPOTS; i++) {
+        if (saved[i][0] != -1) {
+          trellis.setLED(i);
+          trellis.writeDisplay();
+        }
 
-  // calculate the average:
-  average = total / numReadings;
-  // send it to the computer as ASCII digits
+      }
+    Serial.print (d);
+    Serial.println (" is deleted.");
 
-  delay(1);        // delay in between reads for stability
-  return average;
-}
+  }
+
+  //------------------helper ----------------------------//
+
+  //this should be a class so you can make separate functions for everything you use it for
+  int smooth (int r) {
+    // subtract the last reading:
+    total = total - readings[index];
+    // read from the sensor:
+    readings[index] = r;
+    // add the reading to the total:
+    total = total + readings[index];
+    // advance to the next position in the array:
+    index = index + 1;
+
+    // if we're at the end of the array...
+    if (index >= numReadings)
+      // ...wrap around to the beginning:
+      index = 0;
+
+    // calculate the average:
+    average = total / numReadings;
+    // send it to the computer as ASCII digits
+
+    delay(1);        // delay in between reads for stability
+    return average;
+  }

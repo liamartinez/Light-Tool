@@ -76,7 +76,7 @@ long startTime = 0;
 long currentTime;
 long interval = 100;
 int numPresses = 0;
-int c=0;
+int c = 0;
 
 //saved settings
 #define NUMSPOTS 16
@@ -97,15 +97,15 @@ void setup() {
   trellis.begin(0x70);  // only one
   FastLED.addLeds<WS2801, DATA_PIN, CLOCK_PIN>(leds, NUM_LEDS);
   //delay( 2000 ); // power-up safety delay
-  
+
   for (uint8_t i = 0; i < numKeys; i++) {
     trellis.setLED(i);
     trellis.writeDisplay();
   }
-  
-   initSD();
+
+  initSD();
   openSD();
-  
+
   animateLights();
   startTime = millis();
 }
@@ -187,8 +187,8 @@ void tinkerMode() {
 
     case 3:
       runAround2 (widthVal, rateVal, hueVal, saturation, brightness, offsetHue, offsetSat, offsetBright);
-      break; 
-      
+      break;
+
     case 4://beam
       beam (widthVal, dirVal, hueVal, saturation, brightness);
       break;
@@ -212,12 +212,12 @@ void tinkerMode() {
 
 //--------
 void saveMode() {
-    for (int i = 0; i < NUMSPOTS; i++) {
-      if (saved[i][0] != -1) {
-        trellis.setLED(i);
-        trellis.writeDisplay();
-      }
+  for (int i = 0; i < NUMSPOTS; i++) {
+    if (saved[i][0] != -1) {
+      trellis.setLED(i);
+      trellis.writeDisplay();
     }
+  }
   if (!deleteMode) {
     delay(30); // 30ms delay is required, dont remove me!
     if (saveNow) {
@@ -273,8 +273,8 @@ void saveMode() {
             break;
 
           case 3:
-            runAround2 (saved[i][2], saved[i][1], saved[i][4], saved[i][5], saved[i][6], saved[i][7], saved[i][8], saved[i][9]);
-            break; 
+             runAround2 (saved[i][2], saved[i][1], saved[i][4], saved[i][5], saved[i][6], saved[i][7], saved[i][8], saved[i][9]);
+            break;
 
           case 4://beam
             beam (saved[i][2], saved[i][3], saved[i][4], saved[i][5], saved[i][6]);
@@ -310,6 +310,7 @@ void saveMode() {
     }
 
   }
+  FastLED.show();
 
 }
 
@@ -333,34 +334,41 @@ void pulse(int v, int h, int s) {
 }
 
 void runAround (int width_, int rate_, int h, int s, int b) {
-  int w = map (width_, 1023, 0, 1, NUM_LEDS / 3);
-  int r = map (rate_, 0, 1024, 100, 200);
+  int w = map (width_, 1023, 0, 1, NUM_LEDS / 2);
+  int r = map (rate_, 0, 1024, 10, 200);
 
 
   if (c < NUM_LEDS) {
-    if (millis() - startTime > rate_) {
-      Serial.println (c);
-      
-      if (c < NUM_LEDS - w) {
-        leds[c + w] = CHSV( h, s, b);
+    if (millis() - startTime > r) {
+      //Serial.println (c);
+      if (c < NUM_LEDS) {
+        leds[c] = CHSV( h, s, b);
+        Serial.println(c);
+        Serial.println ("LIGHT!");
+        FastLED.show();
       } else {
         leds[c + w] = CHSV( h, s, b);
-        leds[width - (NUM_LEDS - c)] = CHSV( h, s, b);
+        leds[w - (NUM_LEDS - c)] = CHSV( h, s, b);
+      }
     }
+    
+    if (millis() - startTime > r*3) {
+     leds[c-2] = CHSV( 0, 0, 0);
+      c++;
+ startTime = millis();
       FastLED.show();
-        c++;
-        Serial.println (c); 
-        startTime = millis();
     }
 
   } else {
-  c = 0; 
+    c = 0;
+     for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i] = CHSV( 0, 0, 0);
+    }
+    FastLED.show();
   }
-
-  leds[c] = CRGB::Black;
-
 }
 
+/*
 void runAround2 (int width_, int rate_, int h, int s, int b, int h2, int s2, int b2) {
   int w = map (width_, 1023, 0, 1, NUM_LEDS / 2);
   int r = map (rate_, 0, 1024, 10, 100);
@@ -376,6 +384,44 @@ void runAround2 (int width_, int rate_, int h, int s, int b, int h2, int s2, int
     leds[i] = CHSV( h, s, b);
   }
 }
+*/
+
+
+void runAround2 (int width_, int rate_, int h, int s, int b, int h2, int s2, int b2) {
+  int w = map (width_, 1023, 0, 1, NUM_LEDS / 2);
+  int r = map (rate_, 0, 1024, 10, 200);
+
+
+  if (c < NUM_LEDS) {
+    if (millis() - startTime > r) {
+      //Serial.println (c);
+      if (c < NUM_LEDS) {
+        leds[c] = CHSV( h + h2, s + s2, b + b2);
+        Serial.println(c);
+        Serial.println ("LIGHT!");
+        FastLED.show();
+      } else {
+        leds[c + w] = CHSV(h + h2, s + s2, b + b2);
+        leds[w - (NUM_LEDS - c)] = CHSV( h + h2, s + s2, b + b2);
+      }
+    }
+    
+    if (millis() - startTime > r*3) {
+     leds[c-2] = CHSV(h, s, b);
+      c++;
+ startTime = millis();
+      FastLED.show();
+    }
+
+  } else {
+    c = 0;
+        for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i] = CHSV( h, s, b);
+    }
+    FastLED.show();
+  }
+}
+
 
 void beam(int width_, int dir_, int h, int s, int b) {
   width = map (width_, 1024, 0, 1, NUM_LEDS / 4);
@@ -472,9 +518,6 @@ int save (int i, int m, int r, int w, int d, int h1, int s1, int b1, int h2, int
     }
     Serial.println();
   }
-  
-
-
 
   Serial.println("Clearing data...");
   SD.remove("settings.txt");
@@ -517,7 +560,7 @@ void del (int d) {
     saved[d][i] = -1;
   }
 
- Serial.println("Clearing data...");
+  Serial.println("Clearing data...");
   SD.remove("settings.txt");
   myFile = SD.open("settings.txt", FILE_WRITE);
 
@@ -541,7 +584,7 @@ void del (int d) {
 
   Serial.print (d);
   Serial.println (" is deleted.");
-  deleteMode = false; 
+  deleteMode = false;
 }
 
 void initSD() {
@@ -576,8 +619,8 @@ void openSD() {
   for (int i = 0; i < NUMSPOTS; i++) {
     for (int j = 0; j < NUMPARAMS; j++) {
       Serial.print(saved [i][j]);
-      Serial.print(", "); 
-      if (j == NUMPARAMS -1) Serial.println(); 
+      Serial.print(", ");
+      if (j == NUMPARAMS - 1) Serial.println();
     }
   }
 }

@@ -87,6 +87,8 @@ int curNum;
 boolean saveNow;
 int delNum, oldVal;
 boolean deleteMode = false;
+boolean currentRun = false;
+int lastNum = -1;
 
 int counter;
 
@@ -175,6 +177,7 @@ void tinkerMode() {
 
     case 0:
       steady (hueVal, saturation, brightness);
+
       break;
 
     case 1:
@@ -183,6 +186,7 @@ void tinkerMode() {
 
     case 2:
       runAround (widthVal, rateVal, hueVal, saturation, brightness);
+
       break;
 
     case 3:
@@ -224,16 +228,12 @@ void saveMode() {
       dialVal = -2; //dont blink anything
     }
 
-
-
     if (trellis.readSwitches()) {
       // go through every button
       for (uint8_t i = 0; i < numKeys; i++) {
         // if it was pressed, turn it on
         if (trellis.justPressed(i)) {
-          Serial.println ("pressed");
           trellis.setLED(i);
-          Serial.println (i);
           dialVal = i;
           if (saveNow) {
             //save something
@@ -253,38 +253,35 @@ void saveMode() {
       trellis.writeDisplay();
     }
     if (dialVal > -1 && dialVal < NUMSPOTS) curNum = dialVal;
+    //saveNow = false;
+    Serial.println (curNum);
+    Serial.print ("             ");
+    Serial.println (dialVal);
 
-    for (int i = 0; i < NUMSPOTS; i++) {
-      if (curNum == i) {
+    switch (saved[curNum][0]) {
+      case 0:
+        steady (saved[curNum][4], saved[curNum][5], saved[curNum][6]);
+        break;
 
-        //saveNow = false;
-        switch (saved[i][0]) {
+      case 1:
+        pulse (saved[curNum][1], saved[curNum][4], saved[curNum][5]);
+        break;
 
-          case 0:
-            steady (saved[i][4], saved[i][5], saved[i][6]);
-            break;
+      case 2:
+        runAround (saved[curNum][2], saved[curNum][1], saved[curNum][4], saved[curNum][5], saved[curNum][6]);
+        break;
 
-          case 1:
-            pulse (saved[i][1], saved[i][4], saved[i][5]);
-            break;
+      case 3:
+        runAround2 (saved[curNum][2], saved[curNum][1], saved[curNum][4], saved[curNum][5], saved[curNum][6], saved[curNum][7], saved[curNum][8], saved[curNum][9]);
+        break;
 
-          case 2:
-            runAround (saved[i][2], saved[i][1], saved[i][4], saved[i][5], saved[i][6]);
-            break;
+      case 4://beam
+        beam (saved[curNum][2], saved[curNum][3], saved[curNum][4], saved[curNum][5], saved[curNum][6]);
+        break;
 
-          case 3:
-             runAround2 (saved[i][2], saved[i][1], saved[i][4], saved[i][5], saved[i][6], saved[i][7], saved[i][8], saved[i][9]);
-            break;
-
-          case 4://beam
-            beam (saved[i][2], saved[i][3], saved[i][4], saved[i][5], saved[i][6]);
-            break;
-
-          case 5: //sparkle
-            sparkle (saved[i][2], saved[i][1], saved[i][4], saved[i][5], saved[i][6], saved[i][7], saved[i][8], saved[i][9]);
-            break;
-        }
-      }
+      case 5: //sparkle
+        sparkle (saved[curNum][2], saved[curNum][1], saved[curNum][4], saved[curNum][5], saved[curNum][6], saved[curNum][7], saved[curNum][8], saved[curNum][9]);
+        break;
     }
   } else if (deleteMode) {
     delay(30); // 30ms delay is required, dont remove me!
@@ -337,91 +334,96 @@ void runAround (int width_, int rate_, int h, int s, int b) {
   int w = map (width_, 1023, 0, 1, NUM_LEDS / 2);
   int r = map (rate_, 0, 1024, 10, 200);
 
+  Serial.print ("                          C is:");
+  Serial.println(c);
 
-  if (c < NUM_LEDS) {
-    if (millis() - startTime > r) {
-      //Serial.println (c);
-      if (c < NUM_LEDS) {
-        leds[c] = CHSV( h, s, b);
-        Serial.println(c);
-        Serial.println ("LIGHT!");
-        FastLED.show();
-      } else {
-        leds[c + w] = CHSV( h, s, b);
-        leds[w - (NUM_LEDS - c)] = CHSV( h, s, b);
+  if (millis() - startTime > r) { //if the timer has run out
+    if (c < NUM_LEDS) {
+      for (int i = 0; i < w; i++) {
+        if ((c + i) < NUM_LEDS) leds[c + i] = CHSV( h, s, b);
+        else leds[i] = CHSV( h, s, b);
       }
-    }
-    
-    if (millis() - startTime > r*3) {
-     leds[c-2] = CHSV( 0, 0, 0);
-      c++;
- startTime = millis();
-      FastLED.show();
-    }
-
-  } else {
-    c = 0;
-     for (int i = 0; i < NUM_LEDS; i++) {
-      leds[i] = CHSV( 0, 0, 0);
-    }
-    FastLED.show();
-  }
-}
-
-/*
-void runAround2 (int width_, int rate_, int h, int s, int b, int h2, int s2, int b2) {
-  int w = map (width_, 1023, 0, 1, NUM_LEDS / 2);
-  int r = map (rate_, 0, 1024, 10, 100);
-  for (int i = 0; i < NUM_LEDS; i ++) {
-    if (i < NUM_LEDS - w) {
-      leds[i + w] = CHSV( h + h2, s + s2, b + b2);
+      for (int i = 0; i < NUM_LEDS; i++) {
+        if (i < c) leds[i] = CHSV( h, s, 0); //black
+      }
+      c++; //move on to the next LED
     } else {
-      leds[i + w] = CHSV( h + h2, s + s2, b + b2);
-      leds[width - (NUM_LEDS - i)] = CHSV(h + h2, s + s2, b + b2);
-    }
-    FastLED.show();
-    delay(r);
-    leds[i] = CHSV( h, s, b);
-  }
-}
-*/
+      c = 0;
+      for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i] = CHSV( h, s, 0); //black
+      }
 
+    }
+    startTime = millis(); //reset the timer
+  }
+
+}
 
 void runAround2 (int width_, int rate_, int h, int s, int b, int h2, int s2, int b2) {
   int w = map (width_, 1023, 0, 1, NUM_LEDS / 2);
   int r = map (rate_, 0, 1024, 10, 200);
 
+  Serial.print ("                          C is:");
+  Serial.println(c);
 
-  if (c < NUM_LEDS) {
-    if (millis() - startTime > r) {
-      //Serial.println (c);
-      if (c < NUM_LEDS) {
-        leds[c] = CHSV( h + h2, s + s2, b + b2);
-        Serial.println(c);
-        Serial.println ("LIGHT!");
-        FastLED.show();
-      } else {
-        leds[c + w] = CHSV(h + h2, s + s2, b + b2);
-        leds[w - (NUM_LEDS - c)] = CHSV( h + h2, s + s2, b + b2);
+  if (millis() - startTime > r) { //if the timer has run out
+    if (c < NUM_LEDS) {
+      for (int i = 0; i < w; i++) {
+        if ((c + i) < NUM_LEDS) leds[c + i] = CHSV(  h + h2, s + s2, b + b2);
+        else leds[i] = CHSV(  h + h2, s + s2, b + b2);
       }
-    }
-    
-    if (millis() - startTime > r*3) {
-     leds[c-2] = CHSV(h, s, b);
-      c++;
- startTime = millis();
-      FastLED.show();
-    }
+      for (int i = 0; i < NUM_LEDS; i++) {
+        if (i < c) leds[i] = CHSV( h, s, b); //black
+      }
+      c++; //move on to the next LED
+    } else {
+      c = 0;
+      for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i] = CHSV( h, s, b); //black
+      }
 
-  } else {
-    c = 0;
-        for (int i = 0; i < NUM_LEDS; i++) {
-      leds[i] = CHSV( h, s, b);
     }
-    FastLED.show();
+    startTime = millis(); //reset the timer
   }
+
 }
 
+
+/*
+
+void runAround2 (int width_, int rate_, int h, int s, int b, int h2, int s2, int b2) {
+  int w = map (width_, 1023, 0, 1, NUM_LEDS / 2);
+  int r = map (rate_, 0, 1024, 10, 200);
+
+  if (millis() - startTime > r) {
+    //Serial.println (c);
+    if (c < NUM_LEDS) {
+      leds[c] = CHSV( h + h2, s + s2, b + b2);
+      Serial.println(c);
+      Serial.println ("LIGHT!");
+      FastLED.show();
+    } else {
+      leds[c + w] = CHSV(h + h2, s + s2, b + b2);
+      leds[w - (NUM_LEDS - c)] = CHSV( h + h2, s + s2, b + b2);
+      FastLED.show();
+      c = 0;
+      for (int i = 0; i < NUM_LEDS; i++) {
+        leds[i] = CHSV( h, s, b);
+      }
+      FastLED.show();
+    }
+  }
+
+  if (millis() - startTime > r * 3) {
+    leds[c - 2] = CHSV(h, s, b);
+    c++;
+    startTime = millis();
+    FastLED.show();
+  }
+
+}
+
+*/
 
 void beam(int width_, int dir_, int h, int s, int b) {
   width = map (width_, 1024, 0, 1, NUM_LEDS / 4);
